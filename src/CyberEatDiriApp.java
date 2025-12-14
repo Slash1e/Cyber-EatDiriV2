@@ -123,12 +123,17 @@ public class CyberEatDiriApp {
     // ---------- APP STATE ----------
     private JFrame frame;
     private JButton cartButton;
-    private ArrayList<CartItem> cart = new ArrayList<>();
-    private ArrayList<Order> orderHistory = new ArrayList<>();
+    private final ArrayList<CartItem> cart = new ArrayList<>();
+    private final ArrayList<Order> orderHistory = new ArrayList<>();
     private DefaultTableModel historyModel;
 
     private String userPcNumber = "";
     private String userSpecialRequest = "";
+
+    // ---------- GAME TIMER STATE ----------
+    private javax.swing.Timer gameTimer;   // Swing timer for countdown
+    private long remainingSeconds = 0;     // total remaining seconds
+    private JLabel timeRemainingLabel;     // label shown in Game Credits tab
 
     // ---------- MENU DATA with IMAGE PATHS ----------
     private final MenuItem[] foodMenu = new MenuItem[] {
@@ -152,7 +157,7 @@ public class CyberEatDiriApp {
         SwingUtilities.invokeLater(() -> new CyberEatDiriApp().start());
     }
 
-    private void start() {
+    public void start() {
         frame = new JFrame("CYBER-EATDIRI");
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         frame.setSize(1350, 800);
@@ -172,20 +177,7 @@ public class CyberEatDiriApp {
         top.setBorder(new EmptyBorder(15, 20, 15, 20));
         top.setBackground(new Color(0x8B0000));
 
-        JPanel titlePanel = new JPanel();
-        titlePanel.setOpaque(false);
-        titlePanel.setLayout(new BoxLayout(titlePanel, BoxLayout.Y_AXIS));
-
-        JLabel title = new JLabel("CYBER-EATDIRI");
-        title.setForeground(Color.WHITE);
-        title.setFont(new Font(APP_FONT, Font.BOLD, 32));
-
-        JLabel tagline = new JLabel("Game • Eat • Connect");
-        tagline.setForeground(Color.WHITE);
-        tagline.setFont(new Font(APP_FONT, Font.PLAIN, 14));
-
-        titlePanel.add(title);
-        titlePanel.add(tagline);
+        JPanel titlePanel = getJPanel();
 
         // 🔹 Cart button WITHOUT emoji, WITH icon
         ImageIcon cartIcon = loadIcon("/assets/cart.png", 18);
@@ -203,6 +195,24 @@ public class CyberEatDiriApp {
         top.add(cartButton, BorderLayout.EAST);
 
         return top;
+    }
+
+    private static JPanel getJPanel() {
+        JPanel titlePanel = new JPanel();
+        titlePanel.setOpaque(false);
+        titlePanel.setLayout(new BoxLayout(titlePanel, BoxLayout.Y_AXIS));
+
+        JLabel title = new JLabel("CYBER-EATDIRI");
+        title.setForeground(Color.WHITE);
+        title.setFont(new Font(APP_FONT, Font.BOLD, 32));
+
+        JLabel tagline = new JLabel("Game • Eat • Connect");
+        tagline.setForeground(Color.WHITE);
+        tagline.setFont(new Font(APP_FONT, Font.PLAIN, 14));
+
+        titlePanel.add(title);
+        titlePanel.add(tagline);
+        return titlePanel;
     }
 
     private JTabbedPane buildTabs() {
@@ -263,6 +273,13 @@ public class CyberEatDiriApp {
         }
 
         main.add(new JScrollPane(grid), BorderLayout.CENTER);
+
+        // 🔹 Timer label at the bottom of the Game Credits tab
+        timeRemainingLabel = new JLabel("Remaining Time: 00:00:00", SwingConstants.CENTER);
+        timeRemainingLabel.setForeground(Color.WHITE);
+        timeRemainingLabel.setFont(new Font(APP_FONT, Font.BOLD, 16));
+        main.add(timeRemainingLabel, BorderLayout.SOUTH);
+
         return main;
     }
 
@@ -501,6 +518,9 @@ public class CyberEatDiriApp {
 
         if (confirm == JOptionPane.OK_OPTION) {
             showSuccessDialog(c.hours + " purchased via " + method + " for P" + c.price + "!");
+
+            // 🔹 Add game time based on the credit purchased
+            addGameTimeFromCredit(c);
         }
     }
 
@@ -768,5 +788,73 @@ public class CyberEatDiriApp {
 
         Image scaled = raw.getImage().getScaledInstance(size, size, Image.SCALE_SMOOTH);
         return new ImageIcon(scaled);
+    }
+
+    // Format seconds as HH:MM:SS
+    private String formatTime(long totalSeconds) {
+        if (totalSeconds < 0) totalSeconds = 0;
+        long hours = totalSeconds / 3600;
+        long minutes = (totalSeconds % 3600) / 60;
+        long seconds = totalSeconds % 60;
+        return String.format("%02d:%02d:%02d", hours, minutes, seconds);
+    }
+
+    // Called whenever we add time from a CreditItem (1 Hour, 3 Hours, etc.)
+    private void addGameTimeFromCredit(CreditItem c) {
+        int hoursToAdd = 0;
+        try {
+            String first = c.hours.split(" ")[0].trim(); // "1", "3", "5", "10"
+            hoursToAdd = Integer.parseInt(first);
+        } catch (Exception ex) {
+            hoursToAdd = 1; // safe fallback
+        }
+        long secondsToAdd = hoursToAdd * 60L * 60L;
+        addGameTime(secondsToAdd);
+    }
+
+    // Core timer logic: add seconds and start/restart timer
+    private void addGameTime(long secondsToAdd) {
+        if (secondsToAdd <= 0) return;
+
+        remainingSeconds += secondsToAdd;
+        updateTimerLabel();
+
+        if (gameTimer == null) {
+            gameTimer = new javax.swing.Timer(1000, e -> {
+                if (remainingSeconds > 0) {
+                    remainingSeconds--;
+                    updateTimerLabel();
+                } else {
+                    handleTimeFinished();
+                }
+            });
+        }
+
+        if (!gameTimer.isRunning()) {
+            gameTimer.start();
+        }
+    }
+
+    // Update the label in the Game Credits tab
+    private void updateTimerLabel() {
+        if (timeRemainingLabel != null) {
+            timeRemainingLabel.setText("Remaining Time: " + formatTime(remainingSeconds));
+        }
+    }
+
+    // What happens when the countdown hits 0
+    private void handleTimeFinished() {
+        if (gameTimer != null) {
+            gameTimer.stop();
+        }
+        remainingSeconds = 0;
+        updateTimerLabel();
+
+        JOptionPane.showMessageDialog(
+                frame,
+                "Your game time has ended.",
+                "Time finished",
+                JOptionPane.INFORMATION_MESSAGE
+        );
     }
 }
