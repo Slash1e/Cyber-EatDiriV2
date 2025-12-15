@@ -6,14 +6,14 @@ import java.awt.event.MouseEvent;
 import java.sql.*;
 
 /**
- * Simple Login / Signup UI with SQLite database.
- * After successful login it opens CyberEatDiriApp.
+ * Login / Signup screen for Cyber-EatDiri.
+ * Uses SQLite (cybereatdiri_users.db) to store users.
  */
 public class CyberEatDiriAuth {
 
     private static final String APP_FONT = "Poppins";
 
-    // Colors similar to your app
+    // Colors
     private static final Color RED_TOP = new Color(0xCC0000);
     private static final Color RED_BOTTOM = new Color(0x7A0000);
     private static final Color CARD_BG = Color.WHITE;
@@ -24,7 +24,7 @@ public class CyberEatDiriAuth {
     private CardLayout cardLayout;
     private JPanel cardContainer;
 
-    // Signup fields
+    // Sign up fields
     private JTextField signUpEmailField;
     private JTextField signUpPhoneField;
     private JPasswordField signUpPasswordField;
@@ -40,15 +40,23 @@ public class CyberEatDiriAuth {
         SwingUtilities.invokeLater(() -> new CyberEatDiriAuth().start());
     }
 
-    private void start() {
-        db.init();  // create DB + table if needed
+    public void start() {
+        db.init();
+        if (db.getLastError() != null) {
+            JOptionPane.showMessageDialog(
+                    null,
+                    db.getLastError(),
+                    "Database Error",
+                    JOptionPane.ERROR_MESSAGE
+            );
+        }
 
         frame = new JFrame("CYBER-EATDIRI - Login");
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         frame.setSize(900, 600);
         frame.setLocationRelativeTo(null);
 
-        // Root panel with red gradient background
+        // Root panel with gradient background
         JPanel gradientRoot = new JPanel() {
             @Override
             protected void paintComponent(Graphics g) {
@@ -66,7 +74,7 @@ public class CyberEatDiriAuth {
 
         cardLayout = new CardLayout();
         cardContainer = new JPanel(cardLayout);
-        cardContainer.setOpaque(false); // let gradient show
+        cardContainer.setOpaque(false);
 
         cardContainer.add(buildLandingCard(), "landing");
         cardContainer.add(buildSignUpCard(), "signup");
@@ -83,7 +91,7 @@ public class CyberEatDiriAuth {
         cardLayout.show(cardContainer, name);
     }
 
-    // ---------- PANELS ----------
+    // ===================== PANELS =====================
 
     private JPanel buildLandingCard() {
         JPanel panel = new JPanel();
@@ -107,10 +115,10 @@ public class CyberEatDiriAuth {
         panel.add(Box.createVerticalStrut(60));
 
         JButton loginButton = bigBlackButton("LOG IN");
-        loginButton.addActionListener(_ -> showCard("login"));
+        loginButton.addActionListener(e -> showCard("login"));
 
         JButton signUpButton = bigBlackButton("SIGN UP");
-        signUpButton.addActionListener(_ -> showCard("signup"));
+        signUpButton.addActionListener(e -> showCard("signup"));
 
         JPanel buttonsRow = new JPanel();
         buttonsRow.setOpaque(false);
@@ -126,18 +134,21 @@ public class CyberEatDiriAuth {
     }
 
     private JPanel buildSignUpCard() {
+        // White rounded card
         RoundedPanel card = new RoundedPanel(30);
         card.setBackground(CARD_BG);
-        card.setLayout(new BoxLayout(card, BoxLayout.Y_AXIS));
         card.setBorder(new EmptyBorder(30, 40, 30, 40));
         card.setPreferredSize(new Dimension(450, 460));
         card.setMaximumSize(new Dimension(450, 460));
+        card.setLayout(new BoxLayout(card, BoxLayout.Y_AXIS));
 
+        // Heading
         JLabel heading = new JLabel("Sign Up");
         heading.setFont(new Font(APP_FONT, Font.BOLD, 24));
         heading.setForeground(TEXT_DARK);
         heading.setAlignmentX(Component.LEFT_ALIGNMENT);
 
+        // Fields
         signUpEmailField = createTextField();
         signUpPhoneField = createTextField();
         signUpPasswordField = createPasswordField();
@@ -154,13 +165,17 @@ public class CyberEatDiriAuth {
         card.add(labeledField("Confirm Password", signUpConfirmField));
         card.add(Box.createVerticalStrut(20));
 
+        // Button (left aligned)
         JButton signUpBtn = redRoundedButton("Sign Up");
-        signUpBtn.addActionListener(_ -> handleSignUp());
+        signUpBtn.setAlignmentX(Component.LEFT_ALIGNMENT);
+        signUpBtn.addActionListener(e -> handleSignUp());
         card.add(signUpBtn);
         card.add(Box.createVerticalStrut(15));
 
-        JPanel bottomRow = new JPanel();
+        // Bottom row: "Already have an account? Login"
+        JPanel bottomRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
         bottomRow.setOpaque(false);
+
         JLabel already = new JLabel("Already have an account? ");
         already.setFont(new Font(APP_FONT, Font.PLAIN, 12));
         already.setForeground(TEXT_DARK);
@@ -175,28 +190,34 @@ public class CyberEatDiriAuth {
 
         bottomRow.add(already);
         bottomRow.add(loginLink);
+        bottomRow.setAlignmentX(Component.LEFT_ALIGNMENT);
+
         card.add(bottomRow);
 
-        // Wrap to center the card in the gradient background
+        // Wrapper to center the card in the red background
         JPanel wrapper = new JPanel(new GridBagLayout());
         wrapper.setOpaque(false);
         wrapper.add(card, new GridBagConstraints());
+
         return wrapper;
     }
 
     private JPanel buildLoginCard() {
+        // White rounded card
         RoundedPanel card = new RoundedPanel(30);
         card.setBackground(CARD_BG);
-        card.setLayout(new BoxLayout(card, BoxLayout.Y_AXIS));
         card.setBorder(new EmptyBorder(30, 40, 30, 40));
         card.setPreferredSize(new Dimension(450, 360));
         card.setMaximumSize(new Dimension(450, 360));
+        card.setLayout(new BoxLayout(card, BoxLayout.Y_AXIS));
 
+        // Heading
         JLabel heading = new JLabel("Log In");
         heading.setFont(new Font(APP_FONT, Font.BOLD, 24));
         heading.setForeground(TEXT_DARK);
         heading.setAlignmentX(Component.LEFT_ALIGNMENT);
 
+        // Fields
         loginEmailField = createTextField();
         loginPasswordField = createPasswordField();
 
@@ -207,13 +228,17 @@ public class CyberEatDiriAuth {
         card.add(labeledField("Password", loginPasswordField));
         card.add(Box.createVerticalStrut(20));
 
+        // Button (left aligned)
         JButton loginBtn = redRoundedButton("Login");
-        loginBtn.addActionListener(_ -> handleLogin());
+        loginBtn.setAlignmentX(Component.LEFT_ALIGNMENT);
+        loginBtn.addActionListener(e -> handleLogin());
         card.add(loginBtn);
         card.add(Box.createVerticalStrut(15));
 
-        JPanel bottomRow = new JPanel();
+        // Bottom row: "Don't have an account? Sign Up"
+        JPanel bottomRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
         bottomRow.setOpaque(false);
+
         JLabel noAccount = new JLabel("Don’t have an account? ");
         noAccount.setFont(new Font(APP_FONT, Font.PLAIN, 12));
         noAccount.setForeground(TEXT_DARK);
@@ -228,15 +253,19 @@ public class CyberEatDiriAuth {
 
         bottomRow.add(noAccount);
         bottomRow.add(signUpLink);
+        bottomRow.setAlignmentX(Component.LEFT_ALIGNMENT);
+
         card.add(bottomRow);
 
+        // Wrapper to center the card
         JPanel wrapper = new JPanel(new GridBagLayout());
         wrapper.setOpaque(false);
         wrapper.add(card, new GridBagConstraints());
+
         return wrapper;
     }
 
-    // ---------- EVENT HANDLERS ----------
+    // ===================== EVENT HANDLERS =====================
 
     private void handleSignUp() {
         String email = signUpEmailField.getText().trim();
@@ -255,16 +284,18 @@ public class CyberEatDiriAuth {
 
         boolean ok = db.registerUser(email, phone, password);
         if (!ok) {
-            showError("Email is already registered.");
+            String err = db.getLastError();
+            showError(err != null ? err : "Failed to register user.");
             return;
         }
 
-        JOptionPane.showMessageDialog(frame,
+        JOptionPane.showMessageDialog(
+                frame,
                 "Account created successfully! You can now log in.",
                 "Sign Up",
-                JOptionPane.INFORMATION_MESSAGE);
+                JOptionPane.INFORMATION_MESSAGE
+        );
 
-        // Pre-fill login email and go to log in card
         loginEmailField.setText(email);
         loginPasswordField.setText("");
         showCard("login");
@@ -281,19 +312,36 @@ public class CyberEatDiriAuth {
 
         boolean valid = db.validateLogin(email, password);
         if (!valid) {
-            showError("Invalid email or password.");
+            String err = db.getLastError();
+            if (err != null) {
+                showError(err);
+            } else {
+                showError("Invalid email or password.");
+            }
             return;
         }
 
-        JOptionPane.showMessageDialog(frame,
+        // Get user id from DB
+        Integer userId = db.getUserIdByEmail(email);
+        if (userId == null) {
+            showError("Could not find user id for this account.");
+            return;
+        }
+
+        // Store user in the global session
+        UserSession.setUser(userId, email);
+
+        JOptionPane.showMessageDialog(
+                frame,
                 "Login successful! Opening Cyber-EatDiri...",
                 "Login",
-                JOptionPane.INFORMATION_MESSAGE);
+                JOptionPane.INFORMATION_MESSAGE
+        );
 
         frame.dispose();
 
-        // 🔹 Open your main CyberEatDiri app window
-        // Make sure CyberEatDiriApp has a public start() method.
+        // IMPORTANT: keep your original no-arg constructor
+        // We no longer change CyberEatDiriApp constructors.
         new CyberEatDiriApp().start();
     }
 
@@ -301,7 +349,7 @@ public class CyberEatDiriAuth {
         JOptionPane.showMessageDialog(frame, msg, "Error", JOptionPane.ERROR_MESSAGE);
     }
 
-    // ---------- UI HELPERS ----------
+    // ===================== UI HELPERS =====================
 
     private JButton bigBlackButton(String text) {
         JButton btn = new JButton(text);
@@ -317,20 +365,31 @@ public class CyberEatDiriAuth {
     }
 
     private JButton redRoundedButton(String text) {
-        JButton btn = new JButton(text);
+        JButton btn = new JButton(text) {
+            @Override
+            protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
+                        RenderingHints.VALUE_ANTIALIAS_ON);
+
+                int arc = getHeight();
+                g2.setColor(BUTTON_RED);
+                g2.fillRoundRect(0, 0, getWidth(), getHeight(), arc, arc);
+                g2.dispose();
+
+                super.paintComponent(g);
+            }
+        };
+
         btn.setFont(new Font(APP_FONT, Font.BOLD, 14));
         btn.setForeground(Color.WHITE);
         btn.setBackground(BUTTON_RED);
         btn.setFocusPainted(false);
         btn.setBorder(BorderFactory.createEmptyBorder(10, 30, 10, 30));
         btn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-
-        // make it look pill-shaped
         btn.setContentAreaFilled(false);
         btn.setOpaque(false);
-        btn = new RoundedButton(btn, BUTTON_RED);
-
-        btn.setAlignmentX(Component.CENTER_ALIGNMENT);
+        btn.setAlignmentX(Component.LEFT_ALIGNMENT);
         return btn;
     }
 
@@ -338,7 +397,7 @@ public class CyberEatDiriAuth {
         JTextField tf = new JTextField();
         tf.setFont(new Font(APP_FONT, Font.PLAIN, 14));
         tf.setPreferredSize(new Dimension(320, 32));
-        tf.setMaximumSize(new Dimension(Integer.MAX_VALUE, 32)); // fill full row
+        tf.setMaximumSize(new Dimension(Integer.MAX_VALUE, 32));
         tf.setBorder(BorderFactory.createEmptyBorder(5, 10, 5, 10));
         tf.setBackground(new Color(0xEEEEEE));
         tf.setAlignmentX(Component.LEFT_ALIGNMENT);
@@ -349,7 +408,7 @@ public class CyberEatDiriAuth {
         JPasswordField pf = new JPasswordField();
         pf.setFont(new Font(APP_FONT, Font.PLAIN, 14));
         pf.setPreferredSize(new Dimension(320, 32));
-        pf.setMaximumSize(new Dimension(Integer.MAX_VALUE, 32)); // fill full row
+        pf.setMaximumSize(new Dimension(Integer.MAX_VALUE, 32));
         pf.setBorder(BorderFactory.createEmptyBorder(5, 10, 5, 10));
         pf.setBackground(new Color(0xEEEEEE));
         pf.setAlignmentX(Component.LEFT_ALIGNMENT);
@@ -384,19 +443,35 @@ public class CyberEatDiriAuth {
         return link;
     }
 
-    // ---------- DB HELPER ----------
+    public void showAuthWindow() {
+        SwingUtilities.invokeLater(CyberEatDiriAuth::new);
+    }
 
-    /**
-     * Simple SQLite helper.
-     * Table: users(id, email, phone, password)
-     * NOTE: password is stored in plain text for simplicity (not secure for real apps).
-     */
+    // ===================== DB HELPER =====================
+
     private static class DatabaseHelper {
         private static final String DB_URL = "jdbc:sqlite:cybereatdiri_users.db";
+        private String lastError;
+
+        public String getLastError() {
+            return lastError;
+        }
 
         public void init() {
+            lastError = null;
+
+            try {
+                Class.forName("org.sqlite.JDBC");
+            } catch (ClassNotFoundException e) {
+                lastError = "SQLite JDBC driver not found. Make sure sqlite-jdbc.jar is on the classpath.";
+                e.printStackTrace();
+                return;
+            }
+
             try (Connection conn = DriverManager.getConnection(DB_URL);
                  Statement st = conn.createStatement()) {
+
+                // users table ONLY
                 st.executeUpdate(
                         "CREATE TABLE IF NOT EXISTS users (" +
                                 "id INTEGER PRIMARY KEY AUTOINCREMENT," +
@@ -405,45 +480,106 @@ public class CyberEatDiriAuth {
                                 "password TEXT NOT NULL" +
                                 ");"
                 );
+
             } catch (SQLException e) {
+                lastError = "Database init error: " + e.getMessage();
                 e.printStackTrace();
             }
         }
 
         public boolean registerUser(String email, String phone, String password) {
+            lastError = null;
+
+            // make sure DB + users table exist
+            init();
+            if (lastError != null) {
+                return false;   // init already set a nice error message
+            }
+
             String sql = "INSERT INTO users(email, phone, password) VALUES(?, ?, ?)";
+
             try (Connection conn = DriverManager.getConnection(DB_URL);
                  PreparedStatement ps = conn.prepareStatement(sql)) {
+
                 ps.setString(1, email);
                 ps.setString(2, phone);
                 ps.setString(3, password);
                 ps.executeUpdate();
                 return true;
+
             } catch (SQLException e) {
-                // likely email duplicate
+                e.printStackTrace();
+                String msg = e.getMessage() == null ? "" : e.getMessage().toLowerCase();
+                if (msg.contains("unique") || msg.contains("constraint")) {
+                    lastError = "Email is already registered.";
+                } else {
+                    lastError = "Database error while registering: " + e.getMessage();
+                }
                 return false;
             }
         }
 
         public boolean validateLogin(String email, String password) {
+            lastError = null;
+
+            // ensure tables exist
+            init();
+
+            if (lastError != null) {
+                return false;
+            }
+
             String sql = "SELECT id FROM users WHERE email = ? AND password = ?";
+
             try (Connection conn = DriverManager.getConnection(DB_URL);
                  PreparedStatement ps = conn.prepareStatement(sql)) {
+
                 ps.setString(1, email);
                 ps.setString(2, password);
+
                 try (ResultSet rs = ps.executeQuery()) {
                     return rs.next();
                 }
+
             } catch (SQLException e) {
                 e.printStackTrace();
+                lastError = "Database error while logging in: " + e.getMessage();
                 return false;
+            }
+        }
+
+        public Integer getUserIdByEmail(String email) {
+            lastError = null;
+
+            // ensure tables exist
+            init();
+            if (lastError != null) {
+                return null;
+            }
+
+            String sql = "SELECT id FROM users WHERE email = ?";
+
+            try (Connection conn = DriverManager.getConnection(DB_URL);
+                 PreparedStatement ps = conn.prepareStatement(sql)) {
+
+                ps.setString(1, email);
+                try (ResultSet rs = ps.executeQuery()) {
+                    if (rs.next()) {
+                        return rs.getInt("id");
+                    }
+                }
+                return null; // not found
+
+            } catch (SQLException e) {
+                e.printStackTrace();
+                lastError = "Database error while fetching user id: " + e.getMessage();
+                return null;
             }
         }
     }
 
-    // ---------- SMALL UI CLASSES ----------
+    // ===================== SMALL UI CLASS =====================
 
-    // White rounded card panel
     private static class RoundedPanel extends JPanel {
         private final int radius;
 
@@ -459,39 +595,6 @@ public class CyberEatDiriAuth {
                     RenderingHints.VALUE_ANTIALIAS_ON);
             g2.setColor(getBackground());
             g2.fillRoundRect(0, 0, getWidth(), getHeight(), radius, radius);
-            g2.dispose();
-            super.paintComponent(g);
-        }
-    }
-
-    // Wraps a JButton to draw a pill-shaped red background
-    private static class RoundedButton extends JButton {
-        private final JButton inner;
-        private final Color bg;
-
-        public RoundedButton(JButton inner, Color bg) {
-            this.inner = inner;
-            this.bg = bg;
-            setLayout(new BorderLayout());
-            add(inner, BorderLayout.CENTER);
-            setBorderPainted(false);
-            setOpaque(false);
-            setContentAreaFilled(false);
-        }
-
-        @Override
-        public Dimension getPreferredSize() {
-            return inner.getPreferredSize();
-        }
-
-        @Override
-        protected void paintComponent(Graphics g) {
-            Graphics2D g2 = (Graphics2D) g.create();
-            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
-                    RenderingHints.VALUE_ANTIALIAS_ON);
-            int arc = getHeight();
-            g2.setColor(bg);
-            g2.fillRoundRect(0, 0, getWidth(), getHeight(), arc, arc);
             g2.dispose();
             super.paintComponent(g);
         }

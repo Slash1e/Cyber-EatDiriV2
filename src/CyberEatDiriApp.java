@@ -6,9 +6,14 @@ import java.awt.*;
 import java.util.ArrayList;
 import java.util.Date;
 import java.text.SimpleDateFormat;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
 
 public class CyberEatDiriApp {
-
     private static final String APP_FONT = "Poppins";
 
     // ---------- DATA MODELS ----------
@@ -123,12 +128,16 @@ public class CyberEatDiriApp {
     // ---------- APP STATE ----------
     private JFrame frame;
     private JButton cartButton;
+    private JButton logoutButton;   // NEW
     private final ArrayList<CartItem> cart = new ArrayList<>();
     private final ArrayList<Order> orderHistory = new ArrayList<>();
     private DefaultTableModel historyModel;
 
     private String userPcNumber = "";
     private String userSpecialRequest = "";
+
+    // 🔹 NEW: helper for saving/loading orders per user
+    private OrderDatabaseHelper orderDb = new OrderDatabaseHelper();
 
     // ---------- GAME TIMER STATE ----------
     private javax.swing.Timer gameTimer;   // Swing timer for countdown
@@ -158,6 +167,9 @@ public class CyberEatDiriApp {
     }
 
     public void start() {
+        // initialize order history database (per user)
+        orderDb.init();
+
         frame = new JFrame("CYBER-EATDIRI");
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         frame.setSize(1350, 800);
@@ -166,6 +178,9 @@ public class CyberEatDiriApp {
 
         frame.add(buildTopHero(), BorderLayout.NORTH);
         frame.add(buildTabs(), BorderLayout.CENTER);
+
+        // 🔹 After the history table is created, load this user's previous orders
+        loadOrderHistoryForCurrentUser();
 
         frame.setVisible(true);
         updateCartButton();
@@ -179,7 +194,11 @@ public class CyberEatDiriApp {
 
         JPanel titlePanel = getJPanel();
 
-        // 🔹 Cart button WITHOUT emoji, WITH icon
+        // Right side panel (Cart + Logout)
+        JPanel rightPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
+        rightPanel.setOpaque(false);
+
+        // Cart button WITH icon
         ImageIcon cartIcon = loadIcon("/assets/cart.png", 18);
 
         cartButton = new JButton("Cart [0]");
@@ -191,10 +210,119 @@ public class CyberEatDiriApp {
         cartButton.setFont(new Font(APP_FONT, Font.BOLD, 14));
         cartButton.addActionListener(e -> openCartDialog());
 
+        // 🔹 Logout button
+        logoutButton = new JButton("Logout");
+        logoutButton.setFocusPainted(false);
+        logoutButton.setFont(new Font(APP_FONT, Font.BOLD, 14));
+        logoutButton.addActionListener(e -> showLogoutDialog());
+
+        rightPanel.add(cartButton);
+        rightPanel.add(logoutButton);
+
         top.add(titlePanel, BorderLayout.WEST);
-        top.add(cartButton, BorderLayout.EAST);
+        top.add(rightPanel, BorderLayout.EAST);
 
         return top;
+    }
+
+    // ---------- LOGOUT FLOW ----------
+
+    private void showLogoutDialog() {
+        JDialog dialog = new JDialog(frame, "Log Out", true);
+        dialog.setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
+
+        JPanel root = new JPanel(new BorderLayout());
+        root.setBackground(new Color(0x8B0000)); // deep red background
+        root.setBorder(new EmptyBorder(30, 30, 30, 30));
+
+        // Center content
+        JPanel center = new JPanel();
+        center.setBackground(new Color(0x8B0000));
+        center.setLayout(new BoxLayout(center, BoxLayout.Y_AXIS));
+
+        JLabel iconLabel = new JLabel();
+        // put your logout image (512x512 etc.) in /assets/logout.png
+        ImageIcon logoutIcon = loadIcon("/assets/logout.png", 120);
+        if (logoutIcon != null) {
+            iconLabel.setIcon(logoutIcon);
+        }
+        iconLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+
+        JLabel titleLabel = new JLabel("Log Out");
+        titleLabel.setForeground(Color.WHITE);
+        titleLabel.setFont(new Font(APP_FONT, Font.BOLD, 28));
+        titleLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+
+        JLabel subtitleLabel = new JLabel("Done ordering?");
+        subtitleLabel.setForeground(Color.WHITE);
+        subtitleLabel.setFont(new Font(APP_FONT, Font.PLAIN, 14));
+        subtitleLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+
+        center.add(Box.createVerticalGlue());
+        center.add(iconLabel);
+        center.add(Box.createVerticalStrut(25));
+        center.add(titleLabel);
+        center.add(Box.createVerticalStrut(8));
+        center.add(subtitleLabel);
+        center.add(Box.createVerticalGlue());
+
+        // Bottom buttons
+        JPanel buttonPanel = new JPanel(new GridLayout(1, 2, 10, 0));
+        buttonPanel.setBackground(new Color(0x8B0000));
+
+        JButton cancelBtn = new JButton("CANCEL");
+        JButton logoutBtn = new JButton("LOGOUT");
+
+        Font btnFont = new Font(APP_FONT, Font.BOLD, 12);
+        Color btnBg = new Color(0x5A0000);   // darker red
+        Color btnFg = Color.WHITE;
+
+        for (JButton b : new JButton[]{cancelBtn, logoutBtn}) {
+            b.setFont(btnFont);
+            b.setBackground(btnBg);
+            b.setForeground(btnFg);
+            b.setFocusPainted(false);
+            b.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+        }
+
+        cancelBtn.addActionListener(e -> dialog.dispose());
+        logoutBtn.addActionListener(e -> {
+            dialog.dispose();
+            performLogout();
+        });
+
+        buttonPanel.add(cancelBtn);
+        buttonPanel.add(logoutBtn);
+
+        root.add(center, BorderLayout.CENTER);
+        root.add(buttonPanel, BorderLayout.SOUTH);
+
+        dialog.setContentPane(root);
+        dialog.pack();
+        dialog.setLocationRelativeTo(frame);
+        dialog.setVisible(true);
+    }
+
+    private void performLogout() {
+        // stop game timer
+        if (gameTimer != null && gameTimer.isRunning()) {
+            gameTimer.stop();
+        }
+        remainingSeconds = 0;
+        updateTimerLabel();
+
+        // clear session info
+        UserSession.clear();
+
+        // close this main window
+        frame.dispose();
+
+        // go back to auth / login screen
+        SwingUtilities.invokeLater(() -> {
+            // Use whatever method you use to show the auth window
+            // Example (adjust if your method name is different):
+            new CyberEatDiriAuth().showAuthWindow();
+        });
     }
 
     private static JPanel getJPanel() {
@@ -627,6 +755,32 @@ public class CyberEatDiriApp {
         dialog.setVisible(true);
     }
 
+    // Load orders from DB for whoever is currently logged in
+    private void loadOrderHistoryForCurrentUser() {
+        if (historyModel == null) {
+            // history table hasn't been built yet
+            return;
+        }
+
+        // If app was launched without login, no session
+        if (!UserSession.isLoggedIn()) {
+            return;
+        }
+
+        int userId = UserSession.getCurrentUserId();
+
+        java.util.List<Order> orders = orderDb.getOrdersForUser(userId);
+
+        // clear in-memory list + table, then repopulate
+        orderHistory.clear();
+        historyModel.setRowCount(0);
+
+        for (Order order : orders) {
+            orderHistory.add(order);
+            addOrderToHistoryTable(order);
+        }
+    }
+
     private void openCheckoutConfirm(JDialog parentDialog) {
         StringBuilder itemsText = new StringBuilder();
         int itemCount = 0;
@@ -677,8 +831,23 @@ public class CyberEatDiriApp {
 
             String time = new SimpleDateFormat("yyyy-MM-dd HH:mm").format(new Date());
             Order order = new Order(time, itemsText.toString().trim(), totalAmount, pc, paymentMethod);
+
+            // In-memory history
             orderHistory.add(order);
             addOrderToHistoryTable(order);
+
+            // 🔹 Persist this order for the currently logged-in user (if any)
+            if (UserSession.isLoggedIn()) {
+                int userId = UserSession.getCurrentUserId();
+                orderDb.insertOrder(
+                        userId,
+                        order.time,
+                        order.itemsSummary,
+                        order.total,
+                        order.pcNumber,
+                        order.paymentMethod
+                );
+            }
 
             cart.clear();
         }
@@ -856,5 +1025,101 @@ public class CyberEatDiriApp {
                 "Time finished",
                 JOptionPane.INFORMATION_MESSAGE
         );
+    }
+
+    // ================= ORDER DB HELPER (inside CyberEatDiriApp) =================
+
+    private static class OrderDatabaseHelper {
+        private static final String DB_URL = "jdbc:sqlite:cybereatdiri_users.db";
+
+        public void init() {
+            try {
+                // Load SQLite JDBC driver
+                Class.forName("org.sqlite.JDBC");
+            } catch (ClassNotFoundException e) {
+                System.out.println("SQLite JDBC driver not found. Make sure sqlite-jdbc.jar is on the classpath.");
+                e.printStackTrace();
+            }
+
+            // Create orders table if it does not exist
+            try (Connection conn = DriverManager.getConnection(DB_URL);
+                 Statement st = conn.createStatement()) {
+
+                st.executeUpdate(
+                        "CREATE TABLE IF NOT EXISTS orders (" +
+                                "id INTEGER PRIMARY KEY AUTOINCREMENT," +
+                                "user_id INTEGER NOT NULL," +
+                                "order_time TEXT NOT NULL," +
+                                "items_summary TEXT NOT NULL," +
+                                "total INTEGER NOT NULL," +
+                                "pc_number TEXT," +
+                                "payment_method TEXT" +
+                                ");"
+                );
+
+            } catch (SQLException e) {
+                System.out.println("Error creating orders table: " + e.getMessage());
+                e.printStackTrace();
+            }
+        }
+
+        public void insertOrder(int userId,
+                                String orderTime,
+                                String itemsSummary,
+                                int total,
+                                String pcNumber,
+                                String paymentMethod) {
+
+            String sql = "INSERT INTO orders(user_id, order_time, items_summary, total, pc_number, payment_method) " +
+                    "VALUES(?, ?, ?, ?, ?, ?)";
+
+            try (Connection conn = DriverManager.getConnection(DB_URL);
+                 PreparedStatement ps = conn.prepareStatement(sql)) {
+
+                ps.setInt(1, userId);
+                ps.setString(2, orderTime);
+                ps.setString(3, itemsSummary);
+                ps.setInt(4, total);
+                ps.setString(5, pcNumber);
+                ps.setString(6, paymentMethod);
+
+                ps.executeUpdate();
+
+            } catch (SQLException e) {
+                System.out.println("Error saving order: " + e.getMessage());
+                e.printStackTrace();
+            }
+        }
+
+        public java.util.List<Order> getOrdersForUser(int userId) {
+            java.util.List<Order> list = new java.util.ArrayList<>();
+
+            String sql = "SELECT order_time, items_summary, total, pc_number, payment_method " +
+                    "FROM orders WHERE user_id = ? ORDER BY id DESC";
+
+            try (Connection conn = DriverManager.getConnection(DB_URL);
+                 PreparedStatement ps = conn.prepareStatement(sql)) {
+
+                ps.setInt(1, userId);
+
+                try (ResultSet rs = ps.executeQuery()) {
+                    while (rs.next()) {
+                        String time = rs.getString("order_time");
+                        String items = rs.getString("items_summary");
+                        int total = rs.getInt("total");
+                        String pc = rs.getString("pc_number");
+                        String pay = rs.getString("payment_method");
+
+                        list.add(new Order(time, items, total, pc, pay));
+                    }
+                }
+
+            } catch (SQLException e) {
+                System.out.println("Error loading orders: " + e.getMessage());
+                e.printStackTrace();
+            }
+
+            return list;
+        }
     }
 }
